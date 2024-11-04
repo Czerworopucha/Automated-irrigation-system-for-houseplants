@@ -36,7 +36,6 @@ int status = WL_IDLE_STATUS;
 WiFiServer server(80);
 
 void autonomousMode(){
-  Serial.println("am");
   unsigned long currentMillis = millis();
   if (currentMillis - prevMillis[0] >= autoInterval){
     prevMillis[0] = currentMillis;
@@ -45,7 +44,6 @@ void autonomousMode(){
 }
 
 void getSensorData(){
-  Serial.println("sensorData");
   for(uint8_t i = 0; i < flowers; i++){
     if(analogRead(sensorPins[i]) < minMoisture){
       digitalWrite(i+2, LOW);
@@ -56,7 +54,6 @@ void getSensorData(){
 }
 
 void controlledMode(){
-  Serial.println("cm");
   unsigned long currentMillis = millis();
   for(int i = 0; i < flowers; i++){
     if(currentMillis - prevMillis[i] >= intervals[i]){
@@ -73,7 +70,7 @@ static modeFunctionPointer modeFunctions[2] = {controlledMode, autonomousMode};
 void apWebsite(int *waterVolume, int *intervalsHours){
   WiFiClient client = server.available();  // listen for incoming clients
   if (client) {                    // if you get a client,
-    //Serial.println("new client");  // print a message out the serial port
+    Serial.println("new client");  // print a message out the serial port
     String currentLine = "";       // make a String to hold incoming data from the client
     while (client.connected()) {   // loop while the client's connected
       delayMicroseconds(10);       // This is required for the Arduino Nano RP2040 Connect - otherwise it will loop so fast that SPI will never be served.
@@ -272,17 +269,17 @@ void setup() {
   server.end();
 
 
-  Serial.println(apOff);
-  Serial.println(flowers);
-  Serial.println(autonomous);
-  for(int i = 0; i < 6; i++){
-    Serial.print(i);
-    Serial.print(".woda: ");
-    Serial.println(waterVolume[i]);
-    Serial.print(i);
-    Serial.print(".interwal: ");
-    Serial.println(intervalsHours[i]);
-  }
+  // Serial.println(apOff);
+  // Serial.println(flowers);
+  // Serial.println(autonomous);
+  // for(int i = 0; i < 6; i++){
+  //   Serial.print(i);
+  //   Serial.print(".woda: ");
+  //   Serial.println(waterVolume[i]);
+  //   Serial.print(i);
+  //   Serial.print(".interwal: ");
+  //   Serial.println(intervalsHours[i]);
+  // }
 
   if(!autonomous){
     for(int i = 0; i < flowers; i++){
