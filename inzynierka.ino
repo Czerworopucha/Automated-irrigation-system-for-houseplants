@@ -1,7 +1,10 @@
 #include <WiFiS3.h>
 #include "wifi_pass.h"
-//#include "FspTimer.h"
+#include "Arduino_LED_Matrix.h"
 
+void(* resetFunc) (void) = 0;
+
+ArduinoLEDMatrix matrix;
 //380-390 = 100% moisture
 //1018 = 0% moisture
 //val = ((% * (max - min) / 100) + min
@@ -10,16 +13,17 @@ const uint16_t minMoisture = 578;
 
 //1.2L/minute
 //100ml
-const unsigned long autoWateringTime = 60000/(1200/100);
+const unsigned long autoWateringTime = 60000/(1200/100); //5 sec
 
 uint8_t flowers = 0; //maximum of 6
 bool apOff = 0;
-bool autonomous = 0;
+bool autonomous = 1;
 
 //uint16_t moistSensors[6] = {0, 0, 0, 0, 0, 0};
 static const char sensorPins[6] = {A0,A1,A2,A3,A4,A5};
 
-const long autoInterval = 30*60*1000; //0.5 hour
+const long autoInterval = 30*60*1000; //30 min
+const long ApOnTime = 15*60*1000; //15 min
 
 unsigned long prevMillis[6] = {0, 0, 0, 0, 0, 0};
 unsigned long intervals[6] = {0, 0, 0, 0, 0, 0};
@@ -55,7 +59,10 @@ void getSensorData(){
 
 void controlledMode(){
   unsigned long currentMillis = millis();
-  for(int i = 0; i < flowers; i++){
+  for(uint8_t i = 0; i < flowers; i++){
+    if(intervals[i] == 0){
+      continue;
+    }
     if(currentMillis - prevMillis[i] >= intervals[i]){
       prevMillis[i] = currentMillis;
       digitalWrite(i+2, LOW);
@@ -138,14 +145,14 @@ void apWebsite(int *waterVolume, int *intervalsHours){
 
             for (int i = 1; i <= 6; i++) {
               client.print("<p style=\"font-size:1vw;\">Numer " + String(i) + ":</p>");
-              client.print("<label for=\"interval" + String(i) + "\" style=\"font-size:1vw;\">Interwal:</label><br>");
+              client.print("<label for=\"interval" + String(i) + "\" style=\"font-size:1vw;\">Interwal podlewania:</label><br>");
               client.print("<input type=\"number\" id=\"interval" + String(i) + "\" style=\"font-size:1vw; width: 20vw;\" value=\"0\" onchange=\"localStorage.setItem('interval" + String(i) + "', this.value)\"><br>");
               client.print("<label for=\"water" + String(i) + "\" style=\"font-size:1vw;\">Woda [ml]:</label><br>");
               client.print("<input type=\"number\" id=\"water" + String(i) + "\" style=\"font-size:1vw; width: 20vw;\" value=\"0\" onchange=\"localStorage.setItem('water" + String(i) + "', this.value)\"><br><br>");
             }
 
-            client.print("<button style=\"font-size:1vw;\" onclick=\"collectAndSetLink()\">Wyslij wszystkie dane</button><br><br>");
-            client.print("<a href=\"/exit\"><button style=\"font-size:1vw;\">Wyjdz</button></a>");
+            client.print("<button style=\"font-size:1vw;\" onclick=\"collectAndSetLink()\">Wyslij dane</button><br><br>");
+            client.print("<a href=\"/exit\"><button style=\"font-size:1vw;\">Zatwierdz</button></a>");
 
             client.print("</body>");
             client.print("</html>");
@@ -237,6 +244,7 @@ void setup() {
   Serial.begin(9600);
   pinInit();
   delay(100);
+  matrix.begin();
 
   if (WiFi.status() == WL_NO_MODULE) {
     while (true)
@@ -256,33 +264,27 @@ void setup() {
       ;
   }
 
+  matrix.loadFrame(LEDMATRIX_CLOUD_WIFI);
   delay(10000);
   server.begin();
 
   //AccessPoint setup, get the needed data to run as configured
-  while(!apOff){
+  unsigned long currentMillis = millis();
+  while(!apOff || currentMillis <= ApOnTime){
+    currentMillis = millis();
     apWebsite(waterVolume, intervalsHours);
   }
 
   Serial.println("turning off ap");
   delay(5000);
   server.end();
-
-
-  // Serial.println(apOff);
-  // Serial.println(flowers);
-  // Serial.println(autonomous);
-  // for(int i = 0; i < 6; i++){
-  //   Serial.print(i);
-  //   Serial.print(".woda: ");
-  //   Serial.println(waterVolume[i]);
-  //   Serial.print(i);
-  //   Serial.print(".interwal: ");
-  //   Serial.println(intervalsHours[i]);
-  // }
+  matrix.clear();
 
   if(!autonomous){
-    for(int i = 0; i < flowers; i++){
+    for(uint8_t i = 0; i < flowers; i++){
+      if(waterVolume[i] == 0 || intervalsHours[i] == 0){
+        continue;
+      }
       //calculate watering times for controlledMode
       controlledWateringTime[i] = 60000/(1200/waterVolume[i]);
       //calculate watering intervals
@@ -291,6 +293,10 @@ void setup() {
   }
 
   delay(5000);
+
+  if(flowers == 0){
+    resetFunc();
+  }
 }
 
 void loop() {
